@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
+#include <string.h>
 #include "lcg.h"
 
 int encrypt(unsigned long c, unsigned long m, unsigned int line);
 
 int decrypt(unsigned long c, unsigned long m, unsigned int line);
 
-void errorOut(unsigned int line);
+int errorOut(unsigned int line);
 
 /*
  * Author: Alex Adams
@@ -22,32 +23,46 @@ int main()
   unsigned long c;
   unsigned long m;
   char* endptr;
-  int tmp[20] = {0};
+  int tmp[21];
+  char converter[21] = {0};
   int counter = 0;
   int otherCounter = 0;
   unsigned int lineCounter = 0;
   mode = getchar();
   while(ender != 1)
   {
+    if(mode != 'e' && mode != 'd')
+    {
+      errorOut(lineCounter);
+      lineCounter++;
+      otherCounter = 0;
+      mode = getchar();
+    }
     tmp[otherCounter] = getchar();
+    /* I don't know why this works, but if I try to set tmp to char everything
+     * just crashes.*/
+    converter[otherCounter] = (char) tmp[otherCounter];
     /* If character is printable */
     if(tmp[otherCounter]<127 && tmp[otherCounter]>31)
     {
       if (tmp[otherCounter] == ',')
       {
+        converter[otherCounter] = 0;
+        tmp[otherCounter] = 0;
         errno = 0;
-        m = strtol((char *) tmp, &endptr, 10);
-        if ((errno == ERANGE && (c == LONG_MAX || c == LONG_MIN))
-            || (errno != 0 && c == 0))
+        c = strtoul(converter, &endptr, 10);
+        if ((errno == ERANGE && (m == LONG_MAX || m == LONG_MIN))
+            || (errno != 0 && m == 0))
         {
-          errorOut(lineCounter);
+          ender = errorOut(lineCounter);
           lineCounter++;
-          otherCounter=0;
         }
+        memset(tmp, 0, sizeof tmp);
+        memset(converter, 0, sizeof converter);
+        otherCounter = 0;
         if (counter == 0)
         {
-          c = m;
-          otherCounter = 0;
+          m = c;
           counter++;
         }
         else
@@ -57,29 +72,38 @@ int main()
           {
             case 'e':
               ender = encrypt(c, m, lineCounter);
+              mode = getchar();
+              counter = 0;
               break;
             case 'd':
               ender = decrypt(c, m, lineCounter);
+              mode = getchar();
+              counter = 0;
               break;
             default:;
-              errorOut(lineCounter);
+              ender = errorOut(lineCounter);
               lineCounter++;
               otherCounter=0;
+              counter = 0;
           }
         }
       }
+      else otherCounter++;
     }
     else if(tmp[otherCounter]!='\n')
       {
-        errorOut(lineCounter);
+        ender = errorOut(lineCounter);
         lineCounter++;
         otherCounter=0;
       }
-    else lineCounter++;
-    otherCounter++;
+    else
+    {
+      lineCounter++;
+      otherCounter = 0;
+    }
     if(otherCounter>20)
     {
-      errorOut(lineCounter);
+      ender = errorOut(lineCounter);
       lineCounter++;
       otherCounter=0;
     }
@@ -87,15 +111,18 @@ int main()
   return 0;
 }
 
-void errorOut(unsigned int line)
+int errorOut(unsigned int line)
 {
   int tmp;
-  printf("%5d: Error", line);
+  printf("%5d: Error\n", line);
   tmp = getchar();
-  while (tmp!='\n')
+  while (tmp!='\n' && tmp!=EOF)
   {
     tmp = getchar();
   }
+  if(tmp == EOF)
+    return 1;
+  return 0;
 }
 
 int decrypt(unsigned long c, unsigned long m, unsigned int line)
@@ -103,37 +130,40 @@ int decrypt(unsigned long c, unsigned long m, unsigned int line)
   struct LinearCongruentialGenerator lcg = makeLCG(m, c);
   int tmp = getchar();
   int tmp2;
+  int rand;
 
   printf("%5d: ",line);
 
   while(tmp != '\n')
   {
     if (tmp == EOF) return 1;
+    rand = getNextRandomValue(&lcg)%128;
     if(tmp == '*')
     {
       tmp2 = getchar();
       if(tmp2 == '*')
       {
-        printf("%c", (char)('*'^(getNextRandomValue(&lcg)%128)));
+        printf("%c", (char)('*'^rand));
       }
       else if (tmp2 == '#')
       {
-        printf("%c", (char)(127^(getNextRandomValue(&lcg)%128)));
+        printf("%c", (char)(127^rand));
       }
       else
       {
-        if(tmp2-'@'>32 && tmp2-'@'<127) printf("%c", (char)((tmp2-'@')^
-            (getNextRandomValue(&lcg)%128)));
+        if(((tmp2-'@')^rand)>31 && ((tmp2-'@')^rand)<127)
+          printf("%c", (char) ((tmp2-'@')^rand));
         else
         {
-          printf("%5d: Error", line);
+          errorOut(line);
           return -1;
         }
       }
     }
-    else printf("%c",(char)(tmp^(getNextRandomValue(&lcg)%128)));
+    else printf("%c",(char)(tmp^rand));
     tmp = getchar();
   }
+  printf("\n");
   return 0;
 }
 
@@ -144,7 +174,7 @@ int encrypt(unsigned long c, unsigned long m, unsigned int line)
   struct LinearCongruentialGenerator lcg = makeLCG(m,c);
   if(lcg.m==0)
   {
-    printf("%5d: Error", line);
+    errorOut(line);
     return -1;
   }
   tmp = getchar();
@@ -156,14 +186,15 @@ int encrypt(unsigned long c, unsigned long m, unsigned int line)
     if(tmp == EOF) return 1;
     if(tmp<32 || tmp>=127)
     {
-      printf("%5d: Error", line);
-      return 1;
+      errorOut(line);
+      return -1;
     }
     rand = getNextRandomValue(&lcg);
-    if((tmp^(rand%128))<32) printf("*%c", (char)(tmp^(rand%128)));
+    if((tmp^(rand%128))<32) printf("*%c", (char)(tmp^(rand%128))+'@');
     else if((tmp^rand%128)==127) printf("*#");
     else printf("%c", (char)(tmp^(rand%128)));
     tmp=getchar();
   }
+  printf("\n");
   return 0;
 }
