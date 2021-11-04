@@ -9,15 +9,16 @@ unsigned long findPrime(unsigned long n);
 struct LinearCongruentialGenerator makeLCG(unsigned long m, unsigned long c)
 {
   struct LinearCongruentialGenerator genny;
-  unsigned int a;
+  unsigned long a;
   if(m%4==0) a= 1+(2*findPrime(m));
-  else a=1+ findPrime(m);
+  else a= findPrime(m)+1;
   genny.m = m;
   genny.c = c;
   genny.x = c;
   genny.a = a;
 
-  if(a>=m || a==0 || m==0 || c>m) genny.a = genny.m = genny.c = genny.x = 0;
+  if(a>=m || a==0 || m==0 || c>m || c==0) genny.a = genny.m = genny.c = genny.x
+    = 0;
   return genny;
 }
 
